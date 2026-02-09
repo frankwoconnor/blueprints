@@ -1,0 +1,179 @@
+blueprint:
+  name: Philips Hue Dimmer RWL022 (Advanced Dimming & Scene Cycle)
+  description: |
+    Full control for Hue Dimmer V2 (RWL022) with advanced dimming variables.
+    - Top Button: Power Toggle
+    - Middle Buttons: Configurable Dimming
+    - Bottom Button: Scene Cycling
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    light_target:
+      name: Light(s)
+      description: Lights controlled by the Dim Up/Down buttons.
+      selector:
+        target:
+          entity:
+            domain: light
+    scenes_to_cycle:
+      name: Scenes to Cycle
+      description: Select scenes to cycle through with the 'Hue' button.
+      default: []
+      selector:
+        entity:
+          domain: scene
+          multiple: true
+    button_on_press:
+      name: "Top Button Action"
+      default: []
+      selector:
+        action: {}
+
+    # --- ADVANCED SECTION ---
+    dim_step_pct:
+      name: "(Advanced) Step Percentage"
+      description: Percentage to change brightness on each tap or hold-loop.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+          mode: slider
+    dim_transition:
+      name: "(Advanced) Hold Transition Speed"
+      description: How smooth the transition is during a long press (seconds).
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 2.0
+          step: 0.1
+          unit_of_measurement: "s"
+          mode: slider
+    dim_min_brightness:
+      name: "(Advanced) Minimum Brightness"
+      description: Prevents dimming below this level (prevents turning off).
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 50
+          unit_of_measurement: "%"
+          mode: slider
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+      scenes: !input scenes_to_cycle
+      # Mapping Advanced Inputs to variables
+      step_pct: !input dim_step_pct
+      transition: !input dim_transition
+      min_bright: !input dim_min_brightness
+
+  - choose:
+      # 1. TOP BUTTON (Power)
+      - conditions:
+          - or:
+              - "{{ command == 'on' }}"
+              - "{{ command == 'off_with_effect' }}"
+        sequence: !input button_on_press
+
+      # 2. DEDICATED DIM UP
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light_target
+            data:
+              brightness_step_pct: "{{ step_pct }}"
+      - conditions:
+          - "{{ command == 'move' and args[0] == 0 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ wait.trigger == none }}"
+              sequence:
+                - service: light.turn_on
+                  target: !input light_target
+                  data:
+                    brightness_step_pct: "{{ step_pct }}"
+                    transition: "{{ transition }}"
+                - wait_for_trigger:
+                    - platform: event
+                      event_type: zha_event
+                      event_data:
+                        device_id: !input remote
+                        command: stop
+                  timeout: "00:00:01"
+
+      # 3. DEDICATED DIM DOWN
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light_target
+            data:
+              brightness_step_pct: "{{ step_pct * -1 }}"
+      - conditions:
+          - "{{ command == 'move' and args[0] == 1 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: "{{ wait.trigger == none }}"
+              sequence:
+                # Logic to prevent dimming below the minimum set in Advanced
+                - condition: template
+                  value_template: >
+                    {% set b = state_attr((integration_entities('light_target') | first), 'brightness') | default(255, true) | int %}
+                    {{ b > (min_bright * 2.55) }}
+                - service: light.turn_on
+                  target: !input light_target
+                  data:
+                    brightness_step_pct: "{{ step_pct * -1 }}"
+                    transition: "{{ transition }}"
+                - wait_for_trigger:
+                    - platform: event
+                      event_type: zha_event
+                      event_data:
+                        device_id: !input remote
+                        command: stop
+                  timeout: "00:00:01"
+
+      # 4. BOTTOM BUTTON (Scene Cycle)
+      - conditions:
+          - or:
+              - "{{ command == 'recall' }}"
+              - "{{ command == 'on_with_recall' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: >
+                {% set total = scenes | length %}
+                {% if total > 0 %}
+                  {% set active = scenes | select('is_state', 'on') | list %}
+                  {% if active | length > 0 %}
+                    {% set current_index = scenes.index(active[0]) %}
+                    {% set next_index = (current_index + 1) % total %}
+                    {{ scenes[next_index] }}
+                  {% else %}
+                    {{ scenes[0] }}
+                  {% endif %}
+                {% endif %}

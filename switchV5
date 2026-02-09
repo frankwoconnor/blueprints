@@ -1,0 +1,72 @@
+blueprint:
+  name: Philips Hue Dimmer RWL022 (ZHA - Verified)
+  description: "Direct 4-button mapping for Hue Dimmer V2. Stable and error-free."
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    light_target:
+      name: Light(s)
+      description: The lights to be dimmed by the middle buttons.
+      selector:
+        target:
+          entity:
+            domain: light
+    button_on_press:
+      name: "Top Button (Power)"
+      default: []
+      selector:
+        action: {}
+    button_up_press:
+      name: "Dim Up (Upper Middle)"
+      default: []
+      selector:
+        action: {}
+    button_down_press:
+      name: "Dim Down (Lower Middle)"
+      default: []
+      selector:
+        action: {}
+    button_off_press:
+      name: "Bottom Button (Hue)"
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+
+  - choose:
+      # 1. TOP BUTTON (Power Toggle)
+      - conditions:
+          - "{{ command == 'on' or command == 'off_with_effect' }}"
+        sequence: !input button_on_press
+
+      # 2. DIM UP (Upper Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence: !input button_up_press
+
+      # 3. DIM DOWN (Lower Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence: !input button_down_press
+
+      # 4. BOTTOM BUTTON (Hue)
+      - conditions:
+          - "{{ command == 'recall' or command == 'on_with_recall' }}"
+        sequence: !input button_off_press

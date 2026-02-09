@@ -13,8 +13,6 @@ blueprint:
       description: Pick your Hue Dimmer Switch (RWL020, RWL021, RWL022)
       selector:
         device:
-          integration: zha
-          manufacturer: Philips
     target_light:
       name: Light to control
       description: Select the light you want to control.

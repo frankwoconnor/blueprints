@@ -1,0 +1,61 @@
+blueprint:
+  name: Philips Hue Dimmer RWL022 (ZHA - Direct Mapping)
+  description: "Simple 4-button mapping. Use the Automation UI to set actions."
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    button_top:
+      name: "1. Top Button (Power)"
+      default: []
+      selector:
+        action: {}
+    button_up:
+      name: "2. Upper Middle (Dim Up)"
+      default: []
+      selector:
+        action: {}
+    button_down:
+      name: "3. Lower Middle (Dim Down)"
+      default: []
+      selector:
+        action: {}
+    button_hue:
+      name: "4. Bottom Button (Hue)"
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - choose:
+      # 1. TOP BUTTON
+      - conditions:
+          - "{{ trigger.event.data.command == 'on' or trigger.event.data.command == 'off_with_effect' }}"
+        sequence: !input button_top
+
+      # 2. DIM UP
+      - conditions:
+          - "{{ trigger.event.data.command == 'step' and trigger.event.data.args[0] == 0 }}"
+        sequence: !input button_up
+
+      # 3. DIM DOWN
+      - conditions:
+          - "{{ trigger.event.data.command == 'step' and trigger.event.data.args[0] == 1 }}"
+        sequence: !input button_down
+
+      # 4. BOTTOM BUTTON
+      - conditions:
+          - "{{ trigger.event.data.command == 'recall' or trigger.event.data.command == 'on_with_recall' }}"
+        sequence: !input button_hue
