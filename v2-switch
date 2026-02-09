@@ -1,0 +1,118 @@
+blueprint:
+  name: Philips Hue Dimmer Switch RWL022 (ZHA - Fixed)
+  description: |
+    Control actions for all 4 buttons on the Philips Hue Dimmer Switch V2 (RWL022).
+    Mapped specifically for ZHA command outputs: 'on', 'step', and 'recall'.
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      description: Select the Philips Hue Dimmer Switch (RWL022)
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+
+    # ON BUTTON (Power - Top)
+    button_on_press:
+      name: "On Button - Press"
+      description: Action to run when the On button is pressed
+      default: []
+      selector:
+        action: {}
+    button_on_long_press:
+      name: "On Button - Long Press"
+      description: Action to run when the On button is held
+      default: []
+      selector:
+        action: {}
+
+    # BRIGHTNESS UP BUTTON (Upper Middle)
+    button_up_press:
+      name: "Brightness Up Button - Press"
+      description: Action to run when the Brightness Up button is pressed
+      default: []
+      selector:
+        action: {}
+    button_up_long_press:
+      name: "Brightness Up Button - Long Press"
+      description: Action to run when the Brightness Up button is held
+      default: []
+      selector:
+        action: {}
+
+    # BRIGHTNESS DOWN BUTTON (Lower Middle)
+    button_down_press:
+      name: "Brightness Down Button - Press"
+      description: Action to run when the Brightness Down button is pressed
+      default: []
+      selector:
+        action: {}
+    button_down_long_press:
+      name: "Brightness Down Button - Long Press"
+      description: Action to run when the Brightness Down button is held
+      default: []
+      selector:
+        action: {}
+
+    # OFF BUTTON (Hue - Bottom)
+    button_off_press:
+      name: "Off Button - Press"
+      description: Action to run when the Off (Hue) button is pressed
+      default: []
+      selector:
+        action: {}
+    button_off_long_press:
+      name: "Off Button - Long Press"
+      description: Action to run when the Off (Hue) button is held
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      # These match the data from your event trace
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+
+  - choose:
+      # ON BUTTON (Top)
+      - conditions:
+          - "{{ command == 'on' }}"
+        sequence: !input button_on_press
+      - conditions:
+          - "{{ command == 'move_with_on_off' }}"
+        sequence: !input button_on_long_press
+
+      # BRIGHTNESS UP BUTTON (Upper Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence: !input button_up_press
+      - conditions:
+          - "{{ command == 'move' and args[0] == 0 }}"
+        sequence: !input button_up_long_press
+
+      # BRIGHTNESS DOWN BUTTON (Lower Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence: !input button_down_press
+      - conditions:
+          - "{{ command == 'move' and args[0] == 1 }}"
+        sequence: !input button_down_long_press
+
+      # OFF BUTTON (Hue - Bottom)
+      - conditions:
+          - "{{ command == 'recall' or command == 'off' }}"
+        sequence: !input button_off_press
+      - conditions:
+          - "{{ command == 'on_hold' or command == 'off_hold' }}" # Fallbacks for long press
+        sequence: !input button_off_long_press
