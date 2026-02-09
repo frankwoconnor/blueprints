@@ -1,0 +1,48 @@
+blueprint:
+  name: ZHA - Philips Hue Dimmer Switch Simple On/Off
+  description: |
+    Simple blueprint to control a light with a Philips Hue Dimmer Switch via ZHA.
+    - "On" button turns the light on.
+    - "Off" button turns the light off.
+
+  domain: automation
+
+  input:
+    remote:
+      name: Philips Hue Dimmer Switch
+      description: Pick your Hue Dimmer Switch (RWL020, RWL021, RWL022)
+      selector:
+        device:
+          integration: zha
+          manufacturer: Philips
+    target_light:
+      name: Light to control
+      description: Select the light you want to control.
+      selector:
+        entity:
+          domain: light
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+      cluster_id: 64512
+
+action:
+  - variables:
+      command: '{{ trigger.event.data.command }}'
+
+  - choose:
+      - conditions: "{{ command == 'on_press' }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input target_light
+      - conditions: "{{ command == 'off_press' }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: !input target_light
+
+mode: single
