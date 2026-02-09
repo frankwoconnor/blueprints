@@ -1,10 +1,10 @@
 blueprint:
-  name: Philips Hue Dimmer RWL022 (Ultimate Fixed V2)
+  name: Philips Hue Dimmer RWL022 (ZHA - Ultimate Fixed)
   description: |
-    Advanced Dimming & Scene Cycling for V2 Hue Dimmer.
-    - Top Button: Power Toggle (on / off_with_effect)
-    - Middle Buttons: Configurable Dimming (step / move)
-    - Bottom Button: Cycle through Scenes (recall)
+    Full control for Hue Dimmer V2 (RWL022).
+    - Top Button: Power Toggle
+    - Middle Buttons: Dedicated Dim Up/Down (with Advanced settings)
+    - Bottom Button: Smart Scene Cycling (No helpers required)
   domain: automation
   input:
     remote:
@@ -15,12 +15,14 @@ blueprint:
           model: RWL022
     light_target:
       name: Light(s)
+      description: Lights to be dimmed by the middle buttons.
       selector:
         target:
           entity:
             domain: light
     scenes_to_cycle:
       name: Scenes to Cycle
+      description: Select the scenes you want the 'Hue' button to cycle through.
       default: []
       selector:
         entity:
@@ -28,12 +30,12 @@ blueprint:
           multiple: true
     button_on_press:
       name: "Top Button Action"
-      description: Usually 'Light: Toggle'
+      description: Action for the power button (e.g., Light Toggle).
       default: []
       selector:
         action: {}
     dim_step_pct:
-      name: "Step Percentage"
+      name: "(Advanced) Step Percentage"
       default: 10
       selector:
         number:
@@ -41,7 +43,7 @@ blueprint:
           max: 50
           unit_of_measurement: "%"
     dim_transition:
-      name: "Transition Speed"
+      name: "(Advanced) Hold Transition Speed"
       default: 0.5
       selector:
         number:
@@ -68,7 +70,7 @@ action:
       transition: !input dim_transition
 
   - choose:
-      # 1. POWER TOGGLE (Top Button)
+      # 1. TOP BUTTON (Power Toggle)
       - conditions:
           - or:
               - "{{ command == 'on' }}"
@@ -133,7 +135,7 @@ action:
                         command: stop
                   timeout: "00:00:01"
 
-      # 4. HUE BUTTON (Scene Cycle - Bottom Button)
+      # 4. HUE BUTTON (Scene Cycle - Smart Logic)
       - conditions:
           - or:
               - "{{ command == 'recall' }}"
@@ -144,16 +146,17 @@ action:
               entity_id: >
                 {% set total = scenes | length %}
                 {% if total > 0 %}
-                  {% set last_activated = scenes 
-                    | map('states', 'last_activated') 
+                  {# Find the scene that was triggered most recently #}
+                  {% set last_triggered = scenes 
+                    | map('states', 'last_triggered') 
                     | map('as_timestamp') 
                     | map('default', 0) 
                     | list %}
-                  {% set newest_timestamp = last_activated | max %}
-                  {% if newest_timestamp == 0 %}
+                  {% set newest_time = last_triggered | max %}
+                  {% if newest_time == 0 %}
                     {{ scenes[0] }}
                   {% else %}
-                    {% set current_index = last_activated.index(newest_timestamp) %}
+                    {% set current_index = last_triggered.index(newest_time) %}
                     {% set next_index = (current_index + 1) % total %}
                     {{ scenes[next_index] }}
                   {% endif %}
