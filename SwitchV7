@@ -1,6 +1,6 @@
 blueprint:
-  name: Philips Hue Dimmer RWL022 (ZHA - Ultimate Scene Cycle)
-  description: "Direct mapping with support for the Hue Button Scene Cycle."
+  name: Philips Hue Dimmer RWL022 (ZHA - Ultimate Fixed)
+  description: "Fixed 'Fast Cycle' bug with a 500ms debounce delay."
   domain: automation
   input:
     remote:
@@ -10,7 +10,7 @@ blueprint:
           integration: zha
           model: RWL022
     button_top:
-      name: "1. Top Button (Power Toggle)"
+      name: "1. Top Button (Power)"
       default: []
       selector:
         action: {}
@@ -26,7 +26,6 @@ blueprint:
         action: {}
     button_hue:
       name: "4. Bottom Button (Hue Cycle)"
-      description: "Map this to the 'Cycle Scenes' script or helper."
       default: []
       selector:
         action: {}
@@ -56,7 +55,12 @@ action:
           - "{{ trigger.event.data.command == 'step' and trigger.event.data.args[0] == 1 }}"
         sequence: !input button_down
 
-      # 4. HUE BUTTON
+      # 4. BOTTOM BUTTON (HUE)
       - conditions:
           - "{{ trigger.event.data.command == 'recall' or trigger.event.data.command == 'on_with_recall' }}"
-        sequence: !input button_hue
+        sequence:
+          - sequence: !input button_hue
+          - delay: 0.5  # <--- THIS IS THE DEBOUNCE FIX
+
+  # This final delay prevents the 'restart' mode from re-triggering too fast
+  - delay: 0.2
