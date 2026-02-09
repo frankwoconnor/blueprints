@@ -1,0 +1,74 @@
+blueprint:
+  name: Philips Hue Dimmer Switch RWL022 (ZHA - Precision Fix)
+  description: |
+    Updated for Hue Dimmer V2 with firmware that sends 'off_with_effect' 
+    and 'recall' commands.
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    button_on_press:
+      name: "Top Button (Power)"
+      default: []
+      selector:
+        action: {}
+    button_up_press:
+      name: "Upper Middle (Dim Up)"
+      default: []
+      selector:
+        action: {}
+    button_down_press:
+      name: "Lower Middle (Dim Down)"
+      default: []
+      selector:
+        action: {}
+    button_off_press:
+      name: "Bottom Button (Hue)"
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+
+  - choose:
+      # 1. TOP BUTTON (Power)
+      # Now supports: 'on' AND 'off_with_effect' (found in your trace)
+      - conditions:
+          - or:
+              - "{{ command == 'on' }}"
+              - "{{ command == 'off_with_effect' }}"
+        sequence: !input button_on_press
+
+      # 2. BRIGHTNESS UP (Upper Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence: !input button_up_press
+
+      # 3. BRIGHTNESS DOWN (Lower Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence: !input button_down_press
+
+      # 4. BOTTOM BUTTON (Hue)
+      # Supports: 'recall', 'off', and 'on_with_recall'
+      - conditions:
+          - or:
+              - "{{ command == 'recall' }}"
+              - "{{ command == 'off' }}"
+              - "{{ command == 'on_with_recall' }}"
+        sequence: !input button_off_press
