@@ -1,0 +1,56 @@
+blueprint:
+  name: ZHA - Hue Switch Scene Cycle
+  description: >
+    Cycle through a list of scenes using a Philips Hue Dimmer Switch button.
+    Requires an `input_number` helper to store the current scene index.
+  domain: automation
+  input:
+    remote:
+      name: Philips Hue Dimmer Switch
+      description: Select your Hue Dimmer Switch.
+      selector:
+        device:
+          integration: zha
+          manufacturer: Philips
+    cycle_button_command:
+      name: Button to press for cycling
+      description: The command sent by the button press (e.g., 'on_press', 'up_press').
+      selector:
+        text:
+      default: 'on_press'
+    scenes:
+      name: Scenes to cycle through
+      description: A list of scenes to cycle through.
+      selector:
+        entity:
+          domain: scene
+          multiple: true
+    cycle_counter:
+      name: Cycle Counter Helper
+      description: The `input_number` helper used to store the current scene index.
+      selector:
+        entity:
+          domain: input_number
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+      command: !input cycle_button_command
+
+action:
+  - variables:
+      scene_list: !input scenes
+      total_scenes: "{{ scene_list | count }}"
+      current_index: "{{ states(cycle_counter) | int(0) }}"
+  - service: scene.turn_on
+    target:
+      entity_id: "{{ scene_list[current_index] }}"
+  - service: input_number.set_value
+    target:
+      entity_id: !input cycle_counter
+    data:
+      value: "{{ (current_index + 1) % total_scenes }}"
+
+mode: single
