@@ -19,24 +19,6 @@ blueprint:
               device_class: battery
               integration: zha
           filter:
-            - manufacturer: &mfctr1 "Signify Netherlands B.V."
-              <<: &flt-hue
-                integration: hue
-                model: "Hue Smart button (ROM001)"
-            - manufacturer: &mfctr2 "Philips"
-              <<: *flt-hue
-            - manufacturer: *mfctr1
-              <<: &flt-hue2
-                integration: hue
-                model: "Hue Smart button (RDM003)"
-            - manufacturer: *mfctr2
-              <<: *flt-hue2
-            - manufacturer: *mfctr1
-              <<: &flt-zha
-                integration: zha
-                model: "ROM001"
-            - manufacturer: *mfctr2
-              <<: *flt-zha
     controller_topic:
       name: (Zigbee2MQTT) Button `/action` Topic
       description: The MQTT topic to use for the automation (only fill if using Zigbee2MQTT)
