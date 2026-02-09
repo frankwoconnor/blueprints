@@ -1,0 +1,275 @@
+blueprint:
+  name: ZHA - Philips Hue Dimmer Switch (Simple & Advanced)
+  description: |
+    Control lights with a Philips Hue Dimmer Switch (RWL020, RWL021, RWL022) via ZHA.
+    
+    **Simple Mode:**  
+    - Select your Hue Dimmer and a light.  
+    - The buttons will: On = turn on, Off = turn off, Up = brighten, Down = dim.
+    
+    **Advanced Mode:**  
+    - Enable "Advanced Customization" below to override any button with your own actions.
+    - If you only want to customize some buttons, leave others blank to use the default action.
+    
+    ---
+    **Instructions:**
+    1. Select your Hue Dimmer remote.
+    2. Select the light you want to control.
+    3. (Optional) Enable advanced customization to override button actions.
+    4. Save and enjoy!
+    
+    ---
+    If your remote doesn't work, try "Reconfigure device" in ZHA Device Info.
+    For more info, see https://gist.github.com/sandervv/f326ff3b2bcb945b5a9dc0bfb82e3308
+
+  domain: automation
+
+  input:
+    remote:
+      name: Philips Hue Dimmer Switch
+      description: Pick your Hue Dimmer Switch (RWL020, RWL021, RWL022)
+      selector:
+        device:
+          integration: zha
+          manufacturer: Philips
+    target_light:
+      name: Light to control
+      description: Select the light you want to control with this remote.
+      selector:
+        entity:
+          domain: light
+    advanced:
+      name: Enable advanced customization
+      description: Show advanced button options to override default actions.
+      default: false
+      selector:
+        boolean:
+
+    # Advanced actions (optional, only used if advanced is true or filled in)
+    button_on_short_press:
+      name: On button short press
+      description: Action to run on short on button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_on_long_press:
+      name: On button long press
+      description: Action to run on long on button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_on_double_press:
+      name: On button double press
+      description: Action to run on double on button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+
+    button_up_short_press:
+      name: Up button short press
+      description: Action to run on short up button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_up_long_press:
+      name: Up button long press
+      description: Action to run on long up button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_up_double_press:
+      name: Up button double press
+      description: Action to run on double up button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+
+    button_down_short_press:
+      name: Down button short press
+      description: Action to run on short down button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_down_long_press:
+      name: Down button long press
+      description: Action to run on long down button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_down_double_press:
+      name: Down button double press
+      description: Action to run on double down button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+
+    button_off_short_press:
+      name: Off button short press
+      description: Action to run on short off button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_off_long_press:
+      name: Off button long press
+      description: Action to run on long off button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+    button_off_double_press:
+      name: Off button double press
+      description: Action to run on double off button press (override).
+      default: []
+      selector:
+        action:
+      optional: true
+
+mode: parallel
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input 'remote'
+      cluster_id: 64512
+
+action:
+  - variables:
+      command: '{{ trigger.event.data.command }}'
+      advanced: !input advanced
+
+  - choose:
+      # ON BUTTON
+      - conditions: "{{ command == 'on_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_on_short_press|length > 0) }}"
+                sequence: !input button_on_short_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+
+      - conditions: "{{ command == 'on_hold' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_on_long_press|length > 0) }}"
+                sequence: !input button_on_long_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+                data:
+                  brightness: 254
+
+      - conditions: "{{ command == 'on_double_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_on_double_press|length > 0) }}"
+                sequence: !input button_on_double_press
+
+      # UP BUTTON
+      - conditions: "{{ command == 'up_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_up_short_press|length > 0) }}"
+                sequence: !input button_up_short_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+                data:
+                  brightness_step_pct: 15
+
+      - conditions: "{{ command == 'up_hold' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_up_long_press|length > 0) }}"
+                sequence: !input button_up_long_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+                data:
+                  brightness: 254
+
+      - conditions: "{{ command == 'up_double_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_up_double_press|length > 0) }}"
+                sequence: !input button_up_double_press
+
+      # DOWN BUTTON
+      - conditions: "{{ command == 'down_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_down_short_press|length > 0) }}"
+                sequence: !input button_down_short_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+                data:
+                  brightness_step_pct: -15
+
+      - conditions: "{{ command == 'down_hold' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_down_long_press|length > 0) }}"
+                sequence: !input button_down_long_press
+            default:
+              - service: light.turn_on
+                target:
+                  entity_id: !input target_light
+                data:
+                  brightness: 1
+
+      - conditions: "{{ command == 'down_double_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_down_double_press|length > 0) }}"
+                sequence: !input button_down_double_press
+
+      # OFF BUTTON
+      - conditions: "{{ command == 'off_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_off_short_press|length > 0) }}"
+                sequence: !input button_off_short_press
+            default:
+              - service: light.turn_off
+                target:
+                  entity_id: !input target_light
+
+      - conditions: "{{ command == 'off_hold' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_off_long_press|length > 0) }}"
+                sequence: !input button_off_long_press
+            default:
+              - service: light.turn_off
+                target:
+                  entity_id: !input target_light
+
+      - conditions: "{{ command == 'off_double_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ advanced and (button_off_double_press|length > 0) }}"
+                sequence: !input button_off_double_press
