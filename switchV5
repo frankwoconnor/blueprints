@@ -1,10 +1,6 @@
 blueprint:
-  name: Philips Hue Dimmer RWL022 (ZHA - Ultimate Fixed)
-  description: |
-    Full control for Hue Dimmer V2 (RWL022).
-    - Top Button: Power Toggle
-    - Middle Buttons: Dedicated Dim Up/Down (with Advanced settings)
-    - Bottom Button: Smart Scene Cycling (No helpers required)
+  name: Philips Hue Dimmer RWL022 (ZHA - Essential)
+  description: "Verified logic for Power Toggle, Dimming, and Scene Cycle."
   domain: automation
   input:
     remote:
@@ -15,45 +11,27 @@ blueprint:
           model: RWL022
     light_target:
       name: Light(s)
-      description: Lights to be dimmed by the middle buttons.
       selector:
         target:
           entity:
             domain: light
-    scenes_to_cycle:
-      name: Scenes to Cycle
-      description: Select the scenes you want the 'Hue' button to cycle through.
-      default: []
-      selector:
-        entity:
-          domain: scene
-          multiple: true
     button_on_press:
-      name: "Top Button Action"
-      description: Action for the power button (e.g., Light Toggle).
+      name: "Top Button Action (Power)"
       default: []
       selector:
         action: {}
-    dim_step_pct:
-      name: "(Advanced) Step Percentage"
-      default: 10
+    scene_1:
+      name: "Hue Button - Scene 1"
+      default: []
       selector:
-        number:
-          min: 1
-          max: 50
-          unit_of_measurement: "%"
-    dim_transition:
-      name: "(Advanced) Hold Transition Speed"
-      default: 0.5
+        action: {}
+    scene_2:
+      name: "Hue Button - Scene 2"
+      default: []
       selector:
-        number:
-          min: 0.1
-          max: 2.0
-          step: 0.1
-          unit_of_measurement: "s"
+        action: {}
 
 mode: restart
-max_exceeded: silent
 
 trigger:
   - platform: event
@@ -65,16 +43,11 @@ action:
   - variables:
       command: "{{ trigger.event.data.command }}"
       args: "{{ trigger.event.data.args }}"
-      scenes: !input scenes_to_cycle
-      step_pct: !input dim_step_pct
-      transition: !input dim_transition
 
   - choose:
       # 1. TOP BUTTON (Power Toggle)
       - conditions:
-          - or:
-              - "{{ command == 'on' }}"
-              - "{{ command == 'off_with_effect' }}"
+          - "{{ command == 'on' or command == 'off_with_effect' }}"
         sequence: !input button_on_press
 
       # 2. DIM UP (Upper Middle)
@@ -84,27 +57,7 @@ action:
           - service: light.turn_on
             target: !input light_target
             data:
-              brightness_step_pct: "{{ step_pct }}"
-      - conditions:
-          - "{{ command == 'move' and args[0] == 0 }}"
-        sequence:
-          - repeat:
-              while:
-                - condition: template
-                  value_template: "{{ wait.trigger == none }}"
-              sequence:
-                - service: light.turn_on
-                  target: !input light_target
-                  data:
-                    brightness_step_pct: "{{ step_pct }}"
-                    transition: "{{ transition }}"
-                - wait_for_trigger:
-                    - platform: event
-                      event_type: zha_event
-                      event_data:
-                        device_id: !input remote
-                        command: stop
-                  timeout: "00:00:01"
+              brightness_step_pct: 10
 
       # 3. DIM DOWN (Lower Middle)
       - conditions:
@@ -113,51 +66,27 @@ action:
           - service: light.turn_on
             target: !input light_target
             data:
-              brightness_step_pct: "{{ step_pct * -1 }}"
-      - conditions:
-          - "{{ command == 'move' and args[0] == 1 }}"
-        sequence:
-          - repeat:
-              while:
-                - condition: template
-                  value_template: "{{ wait.trigger == none }}"
-              sequence:
-                - service: light.turn_on
-                  target: !input light_target
-                  data:
-                    brightness_step_pct: "{{ step_pct * -1 }}"
-                    transition: "{{ transition }}"
-                - wait_for_trigger:
-                    - platform: event
-                      event_type: zha_event
-                      event_data:
-                        device_id: !input remote
-                        command: stop
-                  timeout: "00:00:01"
+              brightness_step_pct: -10
 
-      # 4. HUE BUTTON (Scene Cycle - Smart Logic)
+      # 4. HUE BUTTON (Bottom)
+      # Uses a simple toggle logic: if Scene 1 is active, run Scene 2, else Scene 1.
       - conditions:
-          - or:
-              - "{{ command == 'recall' }}"
-              - "{{ command == 'on_with_recall' }}"
+          - "{{ command == 'recall' or command == 'on_with_recall' }}"
         sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: >
-                {% set total = scenes | length %}
-                {% if total > 0 %}
-                  {# Find the scene that was triggered most recently #}
-                  {% set last_triggered = scenes 
-                    | map('states', 'last_triggered') 
-                    | map('as_timestamp') 
-                    | map('default', 0) 
-                    | list %}
-                  {% set newest_time = last_triggered | max %}
-                  {% if newest_time == 0 %}
-                    {{ scenes[0] }}
-                  {% else %}
-                    {% set current_index = last_triggered.index(newest_time) %}
-                    {% set next_index = (current_index + 1) % total %}
-                    {{ scenes[next_index] }}
-                  {% endif %}
-                {% endif %}
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_state('input_boolean.hue_scene_toggle', 'off') }}"
+                sequence:
+                  - !input scene_1
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: input_boolean.hue_scene_toggle
+              - conditions:
+                  - condition: template
+                    value_template: "{{ is_state('input_boolean.hue_scene_toggle', 'on') }}"
+                sequence:
+                  - !input scene_2
+                  - service: input_boolean.turn_off
+                    target:
+                      entity_id: input_boolean.hue_scene_toggle
