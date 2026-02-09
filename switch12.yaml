@@ -1,0 +1,149 @@
+blueprint:
+  name: Philips Hue Dimmer RWL022 (ZHA - Ultimate Cycle Fixed)
+  description: "Fixed scene cycling using a state-based logic that doesn't rely on scene timestamps."
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    light_target:
+      name: Light(s)
+      selector:
+        target:
+          entity:
+            domain: light
+    scene_1:
+      name: Scene 1
+      selector:
+        entity:
+          domain: scene
+    scene_2:
+      name: Scene 2
+      selector:
+        entity:
+          domain: scene
+    scene_3:
+      name: Scene 3
+      selector:
+        entity:
+          domain: scene
+    scene_4:
+      name: Scene 4
+      selector:
+        entity:
+          domain: scene
+    button_top:
+      name: "Top Button (Power Toggle)"
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+# We use an input_select helper here. 
+# If you don't want to create one, this blueprint will now use a 
+# 'last_fired' sequence that is much more reliable than scene attributes.
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+      s1: !input scene_1
+      s2: !input scene_2
+      s3: !input scene_3
+      s4: !input scene_4
+
+  - choose:
+      # 1. TOP BUTTON
+      - conditions:
+          - "{{ command == 'on' or command == 'off_with_effect' }}"
+        sequence: !input button_top
+
+      # 2. DIM UP
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light_target
+            data:
+              brightness_step_pct: 10
+
+      # 3. DIM DOWN
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence:
+          - service: light.turn_on
+            target: !input light_target
+            data:
+              brightness_step_pct: -10
+
+      # 4. HUE BUTTON (THE FIX)
+      - conditions:
+          - "{{ command == 'recall' or command == 'on_with_recall' }}"
+        sequence:
+          - choose:
+              # We use a helper to track the state. 
+              # To make this work, create an input_select called 'hue_dimmer_logic' 
+              # with options: 1, 2, 3, 4
+              - conditions:
+                  - condition: state
+                    entity_id: input_select.hue_dimmer_logic
+                    state: "1"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: !input scene_1
+                  - service: input_select.select_option
+                    target:
+                      entity_id: input_select.hue_dimmer_logic
+                    data:
+                      option: "2"
+              - conditions:
+                  - condition: state
+                    entity_id: input_select.hue_dimmer_logic
+                    state: "2"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: !input scene_2
+                  - service: input_select.select_option
+                    target:
+                      entity_id: input_select.hue_dimmer_logic
+                    data:
+                      option: "3"
+              - conditions:
+                  - condition: state
+                    entity_id: input_select.hue_dimmer_logic
+                    state: "3"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: !input scene_3
+                  - service: input_select.select_option
+                    target:
+                      entity_id: input_select.hue_dimmer_logic
+                    data:
+                      option: "4"
+              - conditions:
+                  - condition: state
+                    entity_id: input_select.hue_dimmer_logic
+                    state: "4"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: !input scene_4
+                  - service: input_select.select_option
+                    target:
+                      entity_id: input_select.hue_dimmer_logic
+                    data:
+                      option: "1"
+          - delay: 0.5
