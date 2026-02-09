@@ -1,6 +1,6 @@
 blueprint:
-  name: Philips Hue Dimmer RWL022 (ZHA - Essential)
-  description: "Verified logic for Power Toggle, Dimming, and Scene Cycle."
+  name: Philips Hue Dimmer RWL022 (ZHA - Verified)
+  description: "Direct 4-button mapping for Hue Dimmer V2. Stable and error-free."
   domain: automation
   input:
     remote:
@@ -11,22 +11,28 @@ blueprint:
           model: RWL022
     light_target:
       name: Light(s)
+      description: The lights to be dimmed by the middle buttons.
       selector:
         target:
           entity:
             domain: light
     button_on_press:
-      name: "Top Button Action (Power)"
+      name: "Top Button (Power)"
       default: []
       selector:
         action: {}
-    scene_1:
-      name: "Hue Button - Scene 1"
+    button_up_press:
+      name: "Dim Up (Upper Middle)"
       default: []
       selector:
         action: {}
-    scene_2:
-      name: "Hue Button - Scene 2"
+    button_down_press:
+      name: "Dim Down (Lower Middle)"
+      default: []
+      selector:
+        action: {}
+    button_off_press:
+      name: "Bottom Button (Hue)"
       default: []
       selector:
         action: {}
@@ -53,40 +59,14 @@ action:
       # 2. DIM UP (Upper Middle)
       - conditions:
           - "{{ command == 'step' and args[0] == 0 }}"
-        sequence:
-          - service: light.turn_on
-            target: !input light_target
-            data:
-              brightness_step_pct: 10
+        sequence: !input button_up_press
 
       # 3. DIM DOWN (Lower Middle)
       - conditions:
           - "{{ command == 'step' and args[0] == 1 }}"
-        sequence:
-          - service: light.turn_on
-            target: !input light_target
-            data:
-              brightness_step_pct: -10
+        sequence: !input button_down_press
 
-      # 4. HUE BUTTON (Bottom)
-      # Uses a simple toggle logic: if Scene 1 is active, run Scene 2, else Scene 1.
+      # 4. BOTTOM BUTTON (Hue)
       - conditions:
           - "{{ command == 'recall' or command == 'on_with_recall' }}"
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_state('input_boolean.hue_scene_toggle', 'off') }}"
-                sequence:
-                  - !input scene_1
-                  - service: input_boolean.turn_on
-                    target:
-                      entity_id: input_boolean.hue_scene_toggle
-              - conditions:
-                  - condition: template
-                    value_template: "{{ is_state('input_boolean.hue_scene_toggle', 'on') }}"
-                sequence:
-                  - !input scene_2
-                  - service: input_boolean.turn_off
-                    target:
-                      entity_id: input_boolean.hue_scene_toggle
+        sequence: !input button_off_press
