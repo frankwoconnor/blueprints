@@ -1,0 +1,72 @@
+blueprint:
+  name: Philips Hue Dimmer RWL022 (ZHA - Area Native)
+  description: "Cycles scenes and dims lights based on a selected Area."
+  domain: automation
+  input:
+    remote:
+      name: Dimmer Switch
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+    target_area:
+      name: Target Area
+      description: The room (Area) this remote will control.
+      selector:
+        area: {}
+    button_top:
+      name: "1. Top Button (Power)"
+      default: []
+      selector:
+        action: {}
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input remote
+
+action:
+  - variables:
+      # Capture the area ID from the input
+      area_id: !input target_area
+      command: "{{ trigger.event.data.command }}"
+      args: "{{ trigger.event.data.args }}"
+
+  - choose:
+      # 1. TOP BUTTON (Power Toggle)
+      - conditions:
+          - "{{ command == 'on' or command == 'off_with_effect' }}"
+        sequence: !input button_top
+
+      # 2. DIM UP (Upper Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 0 }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              area_id: !input target_area
+            data:
+              brightness_step_pct: 10
+
+      # 3. DIM DOWN (Lower Middle)
+      - conditions:
+          - "{{ command == 'step' and args[0] == 1 }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              area_id: !input target_area
+            data:
+              brightness_step_pct: -10
+
+      # 4. BOTTOM BUTTON (Hue Scene Cycle)
+      - conditions:
+          - "{{ command == 'recall' or command == 'on_with_recall' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              area_id: !input target_area
+          - delay: 0.5 # Debounce
